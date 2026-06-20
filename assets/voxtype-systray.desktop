@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Voxtype Systray
+Comment=Icône d'état du daemon Voxtype dans la zone de notification
+Exec=%h/.local/bin/voxtype-systray
+Icon=utilities-system-monitor
+Categories=Utility;
+X-GNOME-Autostart-enabled=true
+X-KDE-autostart-after=panel
+NoDisplay=false

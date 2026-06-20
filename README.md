@@ -104,7 +104,38 @@ Pour activer les logs de debug (mode tray uniquement) :
 RUST_LOG=voxtype_systray=debug ./target/release/voxtype-systray
 ```
 
-Le process tourne en premier plan. Pour le démoniser, utilisez un service systemd user (US-04).
+Le process tourne en premier plan. Pour qu'il démarre automatiquement à l'ouverture de session, voir **Installation & autostart** ci-dessous.
+
+## Installation & autostart
+
+Le tray s'installe en espace utilisateur (pas de root) et démarre automatiquement au login via un fichier XDG Autostart (lu par KDE Plasma au démarrage de session).
+
+### Installation manuelle
+
+```bash
+# 1. Build
+cargo build --release
+
+# 2. Installer le binaire dans ~/.local/bin
+install -Dm755 target/release/voxtype-systray ~/.local/bin/voxtype-systray
+
+# 3. Installer l'autostart (démarrage à l'ouverture de session)
+install -Dm644 assets/voxtype-systray.desktop ~/.config/autostart/voxtype-systray.desktop
+```
+
+Le tray apparaîtra dans le systray à la prochaine ouverture de session (ou immédiatement en lançant `~/.local/bin/voxtype-systray`). Au login, il démarre sans erreur même si le daemon Voxtype n'est pas encore prêt (icône rouge tant qu'il est injoignable, puis mise à jour automatique).
+
+### Désactiver / réactiver l'autostart
+
+- Via l'interface : **Paramètres système → Démarrage et arrêt → Démarrage automatique**, décocher « Voxtype Systray ».
+- En ligne de commande : supprimer (désactiver) ou restaurer le fichier
+  ```bash
+  rm ~/.config/autostart/voxtype-systray.desktop   # désactive
+  ```
+
+### Installation automatisée (dotfiles)
+
+Le script `packages/80-voxtype.sh` des dotfiles fait tout cela automatiquement : il clone/met à jour ce dépôt depuis GitHub, le build en release, installe le binaire dans `~/.local/bin` et l'autostart dans `~/.config/autostart`. Idempotent (relançable sans risque).
 
 ## Architecture
 
