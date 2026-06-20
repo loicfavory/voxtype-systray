@@ -333,8 +333,10 @@ impl ksni::Tray for VoxtypeTray {
                 label: "▶ Démarrer une réunion".to_string(),
                 enabled: !daemon_stopped,
                 activate: Box::new(|_tray: &mut VoxtypeTray| {
-                    // Horodatage généré au moment du clic (heure locale)
-                    let title = format!("Réunion du {}", Local::now().format("%d/%m/%y à %H:%M"));
+                    // Titre ASCII (sans accent ni caractère spécial) pour que le
+                    // dossier créé par Voxtype reste propre. Voxtype préfixe déjà
+                    // la date, on ne met donc que l'heure. Heure locale au clic.
+                    let title = format!("Reunion {}", Local::now().format("%Hh%M"));
                     spawn_fire_and_forget(&["voxtype", "meeting", "start", "--title", &title]);
                 }),
                 ..Default::default()
