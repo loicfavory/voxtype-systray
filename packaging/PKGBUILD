@@ -1,0 +1,62 @@
+# Maintainer: Loic Favory <loic@effetb.com>
+pkgname=voxtype-systray-git
+pkgver=r4.8b27521
+pkgrel=1
+pkgdesc="Systray StatusNotifierItem pour Voxtype — affiche l'état du daemon dans KDE Plasma"
+arch=('x86_64')
+url="https://github.com/loicfavory/voxtype-systray"
+license=('MIT')
+depends=(
+    'glibc'
+    'libgcc'
+)
+optdepends=(
+    'voxtype: daemon Voxtype (requis pour la dictée et le mode réunion)'
+)
+makedepends=('rust' 'git')
+provides=('voxtype-systray')
+conflicts=('voxtype-systray')
+source=("$pkgname::git+https://github.com/loicfavory/voxtype-systray.git"
+        "LICENSE")
+sha256sums=('SKIP'
+            '56d834a907241e69f477332e75699f516bb0f64fe203cd93d75a4e08ba3eaae5')
+
+pkgver() {
+    cd "$srcdir/$pkgname"
+    ( set -o pipefail
+      git describe --long --abbrev=7 --tags 2>/dev/null \
+        | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g' \
+        || printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
+    )
+}
+
+prepare() {
+    cd "$srcdir/$pkgname"
+    export CARGO_HOME="$srcdir/.cargo"
+    cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+    cd "$srcdir/$pkgname"
+    export CARGO_HOME="$srcdir/.cargo"
+    export RUSTUP_TOOLCHAIN=stable
+    export RUSTFLAGS="--remap-path-prefix=$srcdir=/build"
+    cargo build --frozen --release --all-features
+}
+
+package() {
+    cd "$srcdir/$pkgname"
+
+    # Binaire principal
+    install -Dm755 "target/release/voxtype-systray" \
+        "$pkgdir/usr/bin/voxtype-systray"
+
+    # Autostart system-wide : réécriture de l'Exec (US-04 utilise %h/.local/bin/...)
+    install -Dm644 "assets/voxtype-systray.desktop" \
+        "$pkgdir/etc/xdg/autostart/voxtype-systray.desktop"
+    sed -i 's|^Exec=.*|Exec=voxtype-systray|' \
+        "$pkgdir/etc/xdg/autostart/voxtype-systray.desktop"
+
+    # Licence MIT
+    install -Dm644 "$srcdir/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

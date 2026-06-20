@@ -108,9 +108,49 @@ Le process tourne en premier plan. Pour qu'il démarre automatiquement à l'ouve
 
 ## Installation & autostart
 
-Le tray s'installe en espace utilisateur (pas de root) et démarre automatiquement au login via un fichier XDG Autostart (lu par KDE Plasma au démarrage de session).
+Le tray s'installe en tant que paquet Arch (`voxtype-systray-git`) géré par pacman. Le binaire est placé dans `/usr/bin` et l'autostart system-wide dans `/etc/xdg/autostart`. La désinstallation est propre via `pacman -R`.
 
-### Installation manuelle
+### Installation via paquet (recommandée — Arch Linux)
+
+```bash
+# Depuis le répertoire packaging/ du repo
+cd packaging
+makepkg -si
+```
+
+Le paquet installe :
+- `/usr/bin/voxtype-systray` — le binaire
+- `/etc/xdg/autostart/voxtype-systray.desktop` — autostart KDE system-wide
+
+Le tray démarrera automatiquement à la prochaine ouverture de session, ou immédiatement en lançant `voxtype-systray`.
+
+### Désinstallation
+
+```bash
+pacman -R voxtype-systray-git
+```
+
+Tout est retiré proprement (binaire + autostart).
+
+### Désactiver / réactiver l'autostart sans désinstaller
+
+- Via l'interface : **Paramètres système → Démarrage et arrêt → Démarrage automatique**, décocher « Voxtype Systray ».
+- En ligne de commande : KDE Plasma honore le fichier `~/.config/autostart/voxtype-systray.desktop` avec `Hidden=true` pour désactiver l'autostart system-wide pour l'utilisateur courant :
+  ```bash
+  # Désactiver pour l'utilisateur courant (sans désinstaller le paquet)
+  mkdir -p ~/.config/autostart
+  printf '[Desktop Entry]\nHidden=true\n' > ~/.config/autostart/voxtype-systray.desktop
+  # Réactiver : supprimer le fichier override
+  rm ~/.config/autostart/voxtype-systray.desktop
+  ```
+
+### Installation automatisée (dotfiles)
+
+Le script `packages/80-voxtype.sh` des dotfiles fait tout cela automatiquement : il clone/met à jour ce dépôt depuis GitHub, construit le paquet via `makepkg -si`, et gère la migration depuis une éventuelle installation manuelle antérieure. Idempotent (relançable sans risque).
+
+### Installation manuelle (sans paquet)
+
+Pour une install rapide hors gestion de paquets (développement, test) :
 
 ```bash
 # 1. Build
@@ -123,19 +163,7 @@ install -Dm755 target/release/voxtype-systray ~/.local/bin/voxtype-systray
 install -Dm644 assets/voxtype-systray.desktop ~/.config/autostart/voxtype-systray.desktop
 ```
 
-Le tray apparaîtra dans le systray à la prochaine ouverture de session (ou immédiatement en lançant `~/.local/bin/voxtype-systray`). Au login, il démarre sans erreur même si le daemon Voxtype n'est pas encore prêt (icône rouge tant qu'il est injoignable, puis mise à jour automatique).
-
-### Désactiver / réactiver l'autostart
-
-- Via l'interface : **Paramètres système → Démarrage et arrêt → Démarrage automatique**, décocher « Voxtype Systray ».
-- En ligne de commande : supprimer (désactiver) ou restaurer le fichier
-  ```bash
-  rm ~/.config/autostart/voxtype-systray.desktop   # désactive
-  ```
-
-### Installation automatisée (dotfiles)
-
-Le script `packages/80-voxtype.sh` des dotfiles fait tout cela automatiquement : il clone/met à jour ce dépôt depuis GitHub, le build en release, installe le binaire dans `~/.local/bin` et l'autostart dans `~/.config/autostart`. Idempotent (relançable sans risque).
+Note : cette méthode pose les fichiers hors gestion pacman. Préférer l'install via paquet pour une machine de production.
 
 ## Architecture
 

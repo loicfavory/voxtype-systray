@@ -1,1 +1,8 @@
 /target
+
+# Artefacts makepkg (clone source, src/, pkg/, paquets construits) :
+# on ne versionne que PKGBUILD, .SRCINFO et LICENSE dans packaging/.
+/packaging/*
+!/packaging/PKGBUILD
+!/packaging/.SRCINFO
+!/packaging/LICENSE

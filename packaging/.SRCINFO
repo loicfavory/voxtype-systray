@@ -1,0 +1,20 @@
+pkgbase = voxtype-systray-git
+	pkgdesc = Systray StatusNotifierItem pour Voxtype — affiche l'état du daemon dans KDE Plasma
+	pkgver = r4.8b27521
+	pkgrel = 1
+	url = https://github.com/loicfavory/voxtype-systray
+	arch = x86_64
+	license = MIT
+	makedepends = rust
+	makedepends = git
+	depends = glibc
+	depends = libgcc
+	optdepends = voxtype: daemon Voxtype (requis pour la dictée et le mode réunion)
+	provides = voxtype-systray
+	conflicts = voxtype-systray
+	source = voxtype-systray-git::git+https://github.com/loicfavory/voxtype-systray.git
+	source = LICENSE
+	sha256sums = SKIP
+	sha256sums = 56d834a907241e69f477332e75699f516bb0f64fe203cd93d75a4e08ba3eaae5
+
+pkgname = voxtype-systray-git
