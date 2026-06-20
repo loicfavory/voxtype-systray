@@ -17,6 +17,8 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 # US-02 : fenêtre de réglages
 eframe = { version = "0.31", default-features = false, features = ["default_fonts", "glow", "wayland", "x11"] }
 toml_edit = "0.22"
+# US-03 : horodatage du titre de réunion (Local::now() + format)
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 # Portail XDG natif (KDE/GNOME) pour la sélection de dossier.
 # La feature xdg-portal est activée par défaut ; pollster est utilisé en interne
 # pour bloquer sur les appels D-Bus → aucun runtime Tokio requis sur le thread.

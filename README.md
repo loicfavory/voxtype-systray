@@ -21,8 +21,40 @@ L'icône se met à jour en < 2 s. Le tooltip au survol distingue « Réunion en 
 
 ## Menu clic-droit
 
-- **Réglages…** : ouvre la fenêtre de réglages (nouveau process `voxtype-systray settings`)
-- **Quitter** : arrête le tray
+Le menu est **dynamique** : il reflète l'état courant à chaque ouverture.
+
+### En-tête d'état (non cliquable)
+
+| État | Libellé |
+|------|---------|
+| Daemon arrêté | `✕ Daemon arrêté` |
+| Daemon actif, au repos | `○ Au repos` |
+| Réunion en cours | `● Réunion en cours` |
+| Dictée en cours | `● Dictée en cours` |
+
+### Contrôle réunion
+
+- **`▶ Démarrer une réunion`** (daemon actif, pas de réunion) — lance `voxtype meeting start --title "Réunion du JJ/MM/AA à HH:MM"` avec un titre horodaté à l'instant du clic
+- **`■ Arrêter la réunion`** (réunion active) — lance `voxtype meeting stop`
+- Grisé si le daemon est arrêté
+
+### Contrôle dictée
+
+- **`🎙 Démarrer la dictée`** (daemon actif, pas de dictée) — lance `voxtype record start`
+- **`■ Arrêter la dictée`** (dictée active) — lance `voxtype record stop`
+- Grisé si le daemon est arrêté
+
+### Contrôle daemon
+
+- **`⏼ Démarrer Voxtype`** (daemon arrêté) — lance `systemctl --user start voxtype`
+- **`↻ Redémarrer Voxtype`** (daemon actif) — lance `systemctl --user restart voxtype`
+
+### Autres
+
+- **`Réglages…`** : ouvre la fenêtre de réglages (nouveau process `voxtype-systray settings`)
+- **`Quitter`** : arrête le tray
+
+> Les actions (démarrer/arrêter réunion, dictée, daemon) sont exécutées de façon non-bloquante (thread détaché). L'icône se met à jour dans les ~2 s via le poll existant.
 
 ## Fenêtre de réglages
 
@@ -84,4 +116,5 @@ Le process tourne en premier plan. Pour le démoniser, utilisez un service syste
 - **Fallback** : `systemctl --user is-active voxtype` pour détecter l'arrêt du daemon
 - **Robustesse** : pipe coupé, JSON malformé, daemon absent → dégradation gracieuse + retry toutes les 2 s
 - **Icônes** : 3 PNG embarqués via `include_bytes!`, convertis RGBA → ARGB32 au démarrage
+- **Menu dynamique** : `menu()` reconstruit les items à chaque ouverture depuis `self.state` (US-01). Actions non-bloquantes via `std::thread::spawn` + `std::process::Command`. Titre de réunion horodaté via `chrono::Local::now()`.
 - **Réglages** : `eframe`/`egui` + `toml_edit` (édition TOML non-destructive) + `rfd` (dialogue de dossier XDG)

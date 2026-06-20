@@ -1,6 +1,7 @@
 mod settings;
 
 use anyhow::{Context, Result};
+use chrono::Local;
 use ksni::TrayMethods;
 use serde::Deserialize;
 use std::sync::{Arc, Mutex};
@@ -207,6 +208,51 @@ fn parse_meeting_status(output: &str) -> MeetingState {
 }
 
 // ──────────────────────────────────────────────
+// Exécution non-bloquante d'une commande externe
+// ──────────────────────────────────────────────
+
+/// Spawne une commande système dans un thread détaché et logge le résultat.
+///
+/// Les callbacks d'items ksni sont synchrones ; cette fonction permet de lancer
+/// `voxtype meeting start/stop`, `voxtype record start/stop` et `systemctl --user …`
+/// sans bloquer la boucle du tray.  On utilise `std::thread::spawn` + `std::process::Command`
+/// (le runtime Tokio n'est pas accessible dans le callback).
+fn spawn_fire_and_forget(args: &[&str]) {
+    // On copie les args en String pour les déplacer dans le thread (durée de vie 'static).
+    let args_owned: Vec<String> = args.iter().map(|s| s.to_string()).collect();
+    std::thread::spawn(move || {
+        if args_owned.is_empty() {
+            eprintln!("[voxtype-systray] spawn_fire_and_forget: args vides");
+            return;
+        }
+        let (program, rest) = args_owned.split_first().expect("args non vides");
+        match std::process::Command::new(program).args(rest).output() {
+            Ok(output) => {
+                if output.status.success() {
+                    eprintln!("[voxtype-systray] OK : {} {}", program, rest.join(" "));
+                } else {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    eprintln!(
+                        "[voxtype-systray] ERREUR : {} {} → code {:?} — {}",
+                        program,
+                        rest.join(" "),
+                        output.status.code(),
+                        stderr.trim()
+                    );
+                }
+            }
+            Err(e) => {
+                eprintln!(
+                    "[voxtype-systray] Impossible de lancer {} {} : {e}",
+                    program,
+                    rest.join(" ")
+                );
+            }
+        }
+    });
+}
+
+// ──────────────────────────────────────────────
 // Struct tray ksni
 // ──────────────────────────────────────────────
 
@@ -249,35 +295,129 @@ impl ksni::Tray for VoxtypeTray {
     }
 
     fn menu(&self) -> Vec<ksni::MenuItem<Self>> {
-        // US-02 : menu minimal — Réglages + Quitter (menu de contrôle complet = US-03)
-        vec![
+        // US-03 : menu dynamique selon l'état courant
+        //
+        // La méthode menu() est appelée à chaque ouverture du menu clic-droit ;
+        // elle lit self.state (déjà calculé et tenu à jour par les tâches d'arrière-plan)
+        // et construit les items en conséquence.  Pas de duplication de logique d'état.
+
+        let daemon_stopped = matches!(self.state, VoxtypeState::Stopped);
+        let meeting_active = matches!(self.state, VoxtypeState::ActiveMeeting { .. });
+        let dictation_active = matches!(self.state, VoxtypeState::ActiveDictation { .. });
+
+        // ── En-tête d'état (non cliquable) ──────────────────────────────────
+        let header_label = match &self.state {
+            VoxtypeState::Stopped => "✕ Daemon arrêté".to_string(),
+            VoxtypeState::Idle => "○ Au repos".to_string(),
+            VoxtypeState::ActiveMeeting { .. } => "● Réunion en cours".to_string(),
+            VoxtypeState::ActiveDictation { .. } => "● Dictée en cours".to_string(),
+        };
+        let header = ksni::MenuItem::Standard(ksni::menu::StandardItem {
+            label: header_label,
+            enabled: false,
+            ..Default::default()
+        });
+
+        // ── Contrôle réunion ─────────────────────────────────────────────────
+        let meeting_item = if meeting_active {
             ksni::MenuItem::Standard(ksni::menu::StandardItem {
-                label: "Réglages…".to_string(),
+                label: "■ Arrêter la réunion".to_string(),
+                enabled: true,
                 activate: Box::new(|_tray: &mut VoxtypeTray| {
-                    // Lance un nouveau process `voxtype-systray settings` sur le thread principal
-                    // (egui ne peut pas tourner dans ce callback ksni)
-                    match std::env::current_exe() {
-                        Ok(exe) => {
-                            if let Err(e) = std::process::Command::new(&exe).arg("settings").spawn()
-                            {
-                                error!("Impossible de lancer la fenêtre de réglages : {e}");
-                            }
-                        }
-                        Err(e) => {
-                            error!("Impossible d'obtenir le chemin du binaire courant : {e}");
-                        }
+                    spawn_fire_and_forget(&["voxtype", "meeting", "stop"]);
+                }),
+                ..Default::default()
+            })
+        } else {
+            ksni::MenuItem::Standard(ksni::menu::StandardItem {
+                label: "▶ Démarrer une réunion".to_string(),
+                enabled: !daemon_stopped,
+                activate: Box::new(|_tray: &mut VoxtypeTray| {
+                    // Horodatage généré au moment du clic (heure locale)
+                    let title = format!("Réunion du {}", Local::now().format("%d/%m/%y à %H:%M"));
+                    spawn_fire_and_forget(&["voxtype", "meeting", "start", "--title", &title]);
+                }),
+                ..Default::default()
+            })
+        };
+
+        // ── Contrôle dictée ──────────────────────────────────────────────────
+        let dictation_item = if dictation_active {
+            ksni::MenuItem::Standard(ksni::menu::StandardItem {
+                label: "■ Arrêter la dictée".to_string(),
+                enabled: true,
+                activate: Box::new(|_tray: &mut VoxtypeTray| {
+                    spawn_fire_and_forget(&["voxtype", "record", "stop"]);
+                }),
+                ..Default::default()
+            })
+        } else {
+            ksni::MenuItem::Standard(ksni::menu::StandardItem {
+                label: "🎙 Démarrer la dictée".to_string(),
+                enabled: !daemon_stopped,
+                activate: Box::new(|_tray: &mut VoxtypeTray| {
+                    spawn_fire_and_forget(&["voxtype", "record", "start"]);
+                }),
+                ..Default::default()
+            })
+        };
+
+        // ── Contrôle daemon ──────────────────────────────────────────────────
+        let daemon_item = if daemon_stopped {
+            ksni::MenuItem::Standard(ksni::menu::StandardItem {
+                label: "⏼ Démarrer Voxtype".to_string(),
+                enabled: true,
+                activate: Box::new(|_tray: &mut VoxtypeTray| {
+                    spawn_fire_and_forget(&["systemctl", "--user", "start", "voxtype"]);
+                }),
+                ..Default::default()
+            })
+        } else {
+            ksni::MenuItem::Standard(ksni::menu::StandardItem {
+                label: "↻ Redémarrer Voxtype".to_string(),
+                enabled: true,
+                activate: Box::new(|_tray: &mut VoxtypeTray| {
+                    spawn_fire_and_forget(&["systemctl", "--user", "restart", "voxtype"]);
+                }),
+                ..Default::default()
+            })
+        };
+
+        // ── Réglages ─────────────────────────────────────────────────────────
+        let settings_item = ksni::MenuItem::Standard(ksni::menu::StandardItem {
+            label: "Réglages…".to_string(),
+            activate: Box::new(|_tray: &mut VoxtypeTray| match std::env::current_exe() {
+                Ok(exe) => {
+                    if let Err(e) = std::process::Command::new(&exe).arg("settings").spawn() {
+                        error!("Impossible de lancer la fenêtre de réglages : {e}");
                     }
-                }),
-                ..Default::default()
+                }
+                Err(e) => {
+                    error!("Impossible d'obtenir le chemin du binaire courant : {e}");
+                }
             }),
+            ..Default::default()
+        });
+
+        // ── Quitter ──────────────────────────────────────────────────────────
+        let quit_item = ksni::MenuItem::Standard(ksni::menu::StandardItem {
+            label: "Quitter".to_string(),
+            activate: Box::new(|_tray: &mut VoxtypeTray| {
+                std::process::exit(0);
+            }),
+            ..Default::default()
+        });
+
+        vec![
+            header,
             ksni::MenuItem::Separator,
-            ksni::MenuItem::Standard(ksni::menu::StandardItem {
-                label: "Quitter".to_string(),
-                activate: Box::new(|_tray: &mut VoxtypeTray| {
-                    std::process::exit(0);
-                }),
-                ..Default::default()
-            }),
+            meeting_item,
+            dictation_item,
+            ksni::MenuItem::Separator,
+            daemon_item,
+            ksni::MenuItem::Separator,
+            settings_item,
+            quit_item,
         ]
     }
 }
