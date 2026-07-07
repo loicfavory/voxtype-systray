@@ -1,0 +1,12 @@
+[Unit]
+Description=Icône d'état du daemon Voxtype dans la zone de notification
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecStart=%h/.local/bin/voxtype-systray
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target

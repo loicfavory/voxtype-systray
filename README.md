@@ -108,7 +108,9 @@ Le process tourne en premier plan. Pour qu'il démarre automatiquement à l'ouve
 
 ## Installation & autostart
 
-Le tray s'installe en tant que paquet Arch (`voxtype-systray-git`) géré par pacman. Le binaire est placé dans `/usr/bin` et l'autostart system-wide dans `/etc/xdg/autostart`. La désinstallation est propre via `pacman -R`.
+Le tray s'installe en tant que paquet Arch (`voxtype-systray-git`) géré par pacman. Le binaire est placé dans `/usr/bin` et l'autostart passe par un service **systemd --user** (`voxtype-systray.service`). La désinstallation est propre via `pacman -R`.
+
+> Historique : l'autostart utilisait auparavant un fichier `.desktop` dans `/etc/xdg/autostart` (US-04). Abandonné car son `Exec=%h/.local/bin/...` reposait sur `%h`, qui n'est **pas** un field-code valide de la spec Desktop Entry — `systemd-xdg-autostart-generator` (utilisé par KDE Plasma/Wayland) ignorait donc silencieusement l'entrée à chaque démarrage de session. `%h` est en revanche un spécificateur systemd valide, d'où le passage à une unité `systemd --user`.
 
 ### Installation via paquet (recommandée — Arch Linux)
 
@@ -120,29 +122,36 @@ makepkg -si
 
 Le paquet installe :
 - `/usr/bin/voxtype-systray` — le binaire
-- `/etc/xdg/autostart/voxtype-systray.desktop` — autostart KDE system-wide
+- `/usr/lib/systemd/user/voxtype-systray.service` — unité systemd --user
 
-Le tray démarrera automatiquement à la prochaine ouverture de session, ou immédiatement en lançant `voxtype-systray`.
+Contrairement à l'ancien autostart XDG, une unité systemd `--user` livrée par un paquet n'est **pas activée automatiquement**. Il faut l'activer une fois par utilisateur :
+
+```bash
+systemctl --user enable --now voxtype-systray.service
+```
+
+Le tray démarrera ensuite automatiquement à chaque ouverture de session graphique (`graphical-session.target`).
 
 ### Désinstallation
 
 ```bash
+systemctl --user disable --now voxtype-systray.service
 pacman -R voxtype-systray-git
 ```
 
-Tout est retiré proprement (binaire + autostart).
+Tout est retiré proprement (binaire + unité systemd).
 
 ### Désactiver / réactiver l'autostart sans désinstaller
 
-- Via l'interface : **Paramètres système → Démarrage et arrêt → Démarrage automatique**, décocher « Voxtype Systray ».
-- En ligne de commande : KDE Plasma honore le fichier `~/.config/autostart/voxtype-systray.desktop` avec `Hidden=true` pour désactiver l'autostart system-wide pour l'utilisateur courant :
-  ```bash
-  # Désactiver pour l'utilisateur courant (sans désinstaller le paquet)
-  mkdir -p ~/.config/autostart
-  printf '[Desktop Entry]\nHidden=true\n' > ~/.config/autostart/voxtype-systray.desktop
-  # Réactiver : supprimer le fichier override
-  rm ~/.config/autostart/voxtype-systray.desktop
-  ```
+```bash
+# Désactiver (le binaire reste installé)
+systemctl --user disable --now voxtype-systray.service
+
+# Réactiver
+systemctl --user enable --now voxtype-systray.service
+```
+
+Diagnostic : `systemctl --user status voxtype-systray.service` et `journalctl --user -u voxtype-systray.service`.
 
 ### Installation automatisée (dotfiles)
 
@@ -159,8 +168,10 @@ cargo build --release
 # 2. Installer le binaire dans ~/.local/bin
 install -Dm755 target/release/voxtype-systray ~/.local/bin/voxtype-systray
 
-# 3. Installer l'autostart (démarrage à l'ouverture de session)
-install -Dm644 assets/voxtype-systray.desktop ~/.config/autostart/voxtype-systray.desktop
+# 3. Installer et activer le service systemd --user
+install -Dm644 assets/voxtype-systray.service ~/.config/systemd/user/voxtype-systray.service
+systemctl --user daemon-reload
+systemctl --user enable --now voxtype-systray.service
 ```
 
 Note : cette méthode pose les fichiers hors gestion pacman. Préférer l'install via paquet pour une machine de production.

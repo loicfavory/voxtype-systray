@@ -1,7 +1,7 @@
 pkgbase = voxtype-systray-git
 	pkgdesc = Systray StatusNotifierItem pour Voxtype — affiche l'état du daemon dans KDE Plasma
 	pkgver = r4.8b27521
-	pkgrel = 1
+	pkgrel = 2
 	url = https://github.com/loicfavory/voxtype-systray
 	arch = x86_64
 	license = MIT

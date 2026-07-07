@@ -1,7 +1,7 @@
 # Maintainer: Loic Favory <loic@effetb.com>
 pkgname=voxtype-systray-git
 pkgver=r4.8b27521
-pkgrel=1
+pkgrel=2
 pkgdesc="Systray StatusNotifierItem pour Voxtype — affiche l'état du daemon dans KDE Plasma"
 arch=('x86_64')
 url="https://github.com/loicfavory/voxtype-systray"
@@ -51,11 +51,12 @@ package() {
     install -Dm755 "target/release/voxtype-systray" \
         "$pkgdir/usr/bin/voxtype-systray"
 
-    # Autostart system-wide : réécriture de l'Exec (US-04 utilise %h/.local/bin/...)
-    install -Dm644 "assets/voxtype-systray.desktop" \
-        "$pkgdir/etc/xdg/autostart/voxtype-systray.desktop"
-    sed -i 's|^Exec=.*|Exec=voxtype-systray|' \
-        "$pkgdir/etc/xdg/autostart/voxtype-systray.desktop"
+    # Service systemd --user : autostart à l'ouverture de session graphique
+    # (%h est un spécificateur systemd valide, réécrit ici pour l'install packagée en /usr/bin)
+    install -Dm644 "assets/voxtype-systray.service" \
+        "$pkgdir/usr/lib/systemd/user/voxtype-systray.service"
+    sed -i 's|^ExecStart=.*|ExecStart=/usr/bin/voxtype-systray|' \
+        "$pkgdir/usr/lib/systemd/user/voxtype-systray.service"
 
     # Licence MIT
     install -Dm644 "$srcdir/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
